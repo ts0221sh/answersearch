@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<!-- バージョン v0.4.0 のファイルです -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アンサーキー突合検索 v0.4.0</title>
+<style>
+  :root {
+    --bg:           #0a0a0f;
+    --bg-surface:   #111118;
+    --bg-elevated:  #1a1a24;
+    --purple:       #9b5de5;
+    --purple-light: #c084fc;
+    --purple-dim:   #6b3eaa;
+    --border:       #2a2a3a;
+    --border-light: #3a3a4a;
+    --text:         #e8e8f0;
+    --text-dim:     #888899;
+    --text-faint:   #555566;
+    --danger:       #ef4444;
+    --warn:         #f59e0b;
+    --ok:           #10b981;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  body { padding: 16px; max-width: 1200px; margin: 0 auto; }
+
+  h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+    color: var(--text);
+    letter-spacing: 1px;
+  }
+  .version {
+    font-size: 11px;
+    color: var(--purple-light);
+    margin-bottom: 16px;
+    font-family: "Menlo", monospace;
+  }
+  h2 {
+    font-size: 14px;
+    margin: 0 0 10px;
+    color: var(--purple-light);
+    border-left: 3px solid var(--purple);
+    padding-left: 8px;
+    letter-spacing: 0.5px;
+  }
+  h3 { font-size: 13px; margin: 10px 0 6px; color: var(--text); }
+
+  .panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  button {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-light);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--purple-dim); border-color: var(--purple); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary {
+    background: var(--purple);
+    border-color: var(--purple);
+    color: #fff;
+    font-weight: 600;
+  }
+  button.primary:hover { background: var(--purple-light); border-color: var(--purple-light); }
+  button.danger:hover { background: var(--danger); border-color: var(--danger); }
+  button.small { padding: 3px 8px; font-size: 11px; }
+
+  input[type="text"], input[type="number"], textarea {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--purple);
+  }
+  input.char-input {
+    width: 36px;
+    text-align: center;
+    font-size: 16px;
+  }
+  input.num-input { width: 56px; }
+
+  label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--purple); cursor: pointer; }
+
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .row > .label { color: var(--text-dim); font-size: 12px; min-width: 80px; }
+
+  /* データソース */
+  .data-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: "Menlo", monospace;
+    background: var(--bg-elevated);
+    margin-left: 8px;
+  }
+  .data-status.ok { color: var(--ok); }
+  .data-status.warn { color: var(--warn); }
+  .data-status.err { color: var(--danger); }
+
+  /* 検索条件 */
+  .cond-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .cond-row {
+    display: flex; gap: 8px; align-items: center;
+    padding: 6px 8px;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .cond-row .arrow {
+    color: var(--purple-light);
+    font-weight: bold;
+    font-size: 16px;
+    margin: 0 4px;
+  }
+  .cond-row .pos-toggle {
+    display: flex; gap: 2px;
+    background: var(--bg-surface);
+    border-radius: 3px;
+    padding: 2px;
+  }
+  .cond-row .pos-toggle button {
+    padding: 2px 8px;
+    font-size: 11px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+  }
+  .cond-row .pos-toggle button.active {
+    background: var(--purple-dim);
+    color: #fff;
+  }
+
+  .combine-row {
+    display: flex; gap: 12px; align-items: center;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* フィルタ */
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .filter-cell {
+    background: var(--bg-elevated);
+    padding: 6px 10px;
+    border-radius: 4px;
+  }
+  .filter-cell .ftitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .filter-cell .fbody {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    font-size: 12px;
+  }
+
+  /* 結果テーブル */
+  .result-summary {
+    display: flex; gap: 14px; align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .result-summary .count {
+    color: var(--purple-light);
+    font-family: "Menlo", monospace;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: "Menlo", "Hiragino Sans", monospace;
+  }
+  .result-table th {
+    text-align: left;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    font-weight: normal;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .result-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .result-table tr:hover { background: var(--bg-elevated); }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 3px;
+    font-family: -apple-system, sans-serif;
+    letter-spacing: 0.3px;
+  }
+  .badge.inv-yes { background: rgba(155, 93, 229, 0.15); color: var(--purple-light); }
+  .badge.inv-no { background: rgba(136, 136, 153, 0.15); color: var(--text-dim); }
+  .badge.inv-unknown { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+  .badge.ana-yes { background: rgba(192, 132, 252, 0.15); color: #c084fc; }
+  .badge.ana-no { background: rgba(136, 136, 153, 0.15); color: var(--text-dim); }
+  .badge.ana-unknown { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+  .badge.diff { background: rgba(16, 185, 129, 0.15); color: var(--ok); }
+  .badge.diff-unknown { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+
+  .word-a, .word-b { color: var(--text); font-weight: 500; }
+  .word-a { color: var(--purple-light); }
+  .col-comment {
+    color: var(--text-dim);
+    font-size: 11px;
+    word-break: break-all;
+    white-space: normal;
+    max-width: 480px;
+    line-height: 1.6;
+  }
+
+  /* コメント着色 */
+  .cc { font-weight: 600; }
+  .cc-neutral { color: var(--text-dim); }
+  .cc-zero {
+    background: var(--c, var(--purple));
+    color: #0a0a0f;
+    font-weight: 700;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .cc-arrow { color: var(--text-faint); margin: 0 2px; }
+  .cc-tail { color: var(--text-faint); margin-left: 4px; }
+
+  /* デバッグ・ハッシュ */
+  .debug-area textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: "Menlo", monospace;
+    font-size: 11px;
+    resize: vertical;
+  }
+  .hash-area input {
+    width: 100%;
+    font-family: "Menlo", monospace;
+    font-size: 11px;
+  }
+  .button-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+  /* モーダル(使い方) */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: var(--bg-surface);
+    border: 1px solid var(--purple);
+    border-radius: 6px;
+    padding: 20px;
+    max-width: 720px;
+    max-height: 80vh;
+    overflow-y: auto;
+    width: 90%;
+  }
+  .modal h3 { color: var(--purple-light); }
+  .modal ul { padding-left: 20px; line-height: 1.8; }
+  .modal code { background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  .empty { color: var(--text-faint); padding: 20px; text-align: center; font-style: italic; }
+
+  .top-row {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .top-actions { display: flex; gap: 6px; }
+
+  details { margin-top: 8px; }
+  details summary { cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 4px 0; }
+  details[open] summary { color: var(--purple-light); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--purple); color: #fff;
+    padding: 8px 16px; border-radius: 4px;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 200;
+    transition: opacity 0.3s;
+  }
+  .toast.fade { opacity: 0; }
+
+  /* 行内アクションボタン */
+  .row-action-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-right: 3px;
+    transition: all 0.15s;
+  }
+  .row-action-btn:hover {
+    background: var(--purple-dim);
+    border-color: var(--purple);
+    color: #fff;
+  }
+
+  /* モーダル(同コメント検索 / 等間隔ペア) */
+  .modal.wide { max-width: 900px; }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: start;
+    margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h3 { margin: 0; }
+  .modal-source {
+    font-family: "Menlo", "Hiragino Sans", monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--bg-elevated);
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    word-break: break-all;
+  }
+
+  /* ズレ数グループ */
+  .diff-group {
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--g-color, var(--purple));
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+  .diff-group.zero {
+    background: rgba(155, 93, 229, 0.18);
+    border-left-color: var(--purple-light);
+    box-shadow: 0 0 0 1px var(--purple) inset;
+  }
+  .diff-group .gtitle {
+    font-size: 12px;
+    color: var(--g-color, var(--purple-light));
+    margin-bottom: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    font-family: "Menlo", monospace;
+  }
+  .diff-group.zero .gtitle {
+    color: var(--purple-light);
+    font-size: 13px;
+  }
+  .diff-group.unmatched {
+    border-left-color: var(--text-faint);
+    opacity: 0.8;
+  }
+  .diff-group.unmatched .gtitle {
+    color: var(--text-faint);
+  }
+  .diff-pairs {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    font-family: "Menlo", "Hiragino Sans", monospace;
+    font-size: 13px;
+  }
+  .diff-pair {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: var(--text);
+  }
+  .diff-group.zero .diff-pair {
+    background: rgba(155, 93, 229, 0.25);
+    border-color: var(--purple);
+    font-weight: 600;
+  }
+
+  /* Tier 表示 */
+  .tier-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+    font-family: -apple-system, sans-serif;
+    letter-spacing: 0.3px;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .tier-badge.tier-1 {
+    background: var(--purple);
+    color: #fff;
+  }
+  .tier-badge.tier-2 {
+    background: var(--bg-surface);
+    color: var(--text-dim);
+    border: 1px solid var(--border-light);
+  }
+  .tier-badge.tier-mixed {
+    background: linear-gradient(90deg, var(--purple) 50%, var(--text-dim) 50%);
+    color: #fff;
+  }
+  .diff-group.tier-2 {
+    opacity: 0.85;
+    background: var(--bg-surface);
+  }
+  .diff-group.tier-2 .gtitle {
+    color: var(--text-dim);
+  }
+  .diff-pair.pair-by-shift {
+    background: var(--bg-surface);
+    color: var(--text-dim);
+    border-style: dashed;
+  }
+  .pair-shift {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 10px;
+    color: var(--warn);
+    font-family: "Menlo", monospace;
+  }
+  .group-summary {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .group-summary .gnum { color: var(--purple-light); font-family: "Menlo", monospace; }
+
+  /* 同コメントモーダル の結果表 */
+  .same-comment-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    background: var(--bg-elevated);
+  }
+  .same-comment-row {
+    font-family: "Menlo", "Hiragino Sans", monospace;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .same-comment-row:hover { background: var(--bg-surface); }
+  .same-comment-row .sa { color: var(--purple-light); }
+  .same-comment-row .sb { color: var(--text); }
+  .same-comment-row .ssep { color: var(--text-dim); margin: 0 6px; }
+</style>
+</head>
+<body>
+
+<div class="top-row">
+  <div>
+    <h1>アンサーキー突合検索</h1>
+    <div class="version">v0.4.0</div>
+  </div>
+  <div class="top-actions">
+    <button id="btn-help">使い方</button>
+  </div>
+</div>
+
+<!-- ===== データソース ===== -->
+<div class="panel">
+  <h2>データソース</h2>
+  <div class="row">
+    <span class="label">GAS Web App URL</span>
+    <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" value="https://script.google.com/macros/s/AKfycbxp-ZlN9PMWmpsB97HWzuIR0BgLnZIt3QPmilviF_BT3w6bHfoVOwU1K5HibkV-sLU/exec" style="flex: 1; min-width: 300px;">
+    <button id="btn-load" class="primary">読込</button>
+    <span id="data-status" class="data-status">未読込</span>
+  </div>
+  <details>
+    <summary>または手動でデータを貼り付け</summary>
+    <div style="margin-top: 6px;">
+      <textarea id="manual-data" placeholder="ついとう,とうつう,コメント
+いじり,うりね,コメント
+..." style="width: 100%; min-height: 80px;"></textarea>
+      <div class="button-row">
+        <button id="btn-load-manual">手動データを読込</button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- ===== 検索条件 ===== -->
+<div class="panel">
+  <h2>検索条件</h2>
+  <div id="cond-list" class="cond-list"></div>
+  <div class="button-row">
+    <button id="btn-add-cond">+ 条件追加</button>
+  </div>
+  <div class="combine-row">
+    <span>結合:</span>
+    <label><input type="radio" name="combine" value="AND" checked>AND</label>
+    <label><input type="radio" name="combine" value="OR">OR</label>
+    <span style="margin-left: 12px; color: var(--text-faint);">A↔B入れ替え検索: 常時ON</span>
+  </div>
+  <div class="button-row">
+    <button id="btn-search" class="primary">検索</button>
+    <button id="btn-clear-cond">条件クリア</button>
+  </div>
+</div>
+
+<!-- ===== フィルタ ===== -->
+<div class="panel">
+  <h2>フィルタ</h2>
+  <div class="filter-grid">
+    <div class="filter-cell">
+      <div class="ftitle">文字数</div>
+      <div class="fbody">
+        <input type="number" id="flt-len-min" class="num-input" placeholder="min" min="1">
+        <span>~</span>
+        <input type="number" id="flt-len-max" class="num-input" placeholder="max" min="1">
+      </div>
+    </div>
+    <div class="filter-cell">
+      <div class="ftitle">文字違い数</div>
+      <div class="fbody">
+        <input type="number" id="flt-diff-min" class="num-input" placeholder="min" min="0">
+        <span>~</span>
+        <input type="number" id="flt-diff-max" class="num-input" placeholder="max" min="0">
+      </div>
+    </div>
+    <div class="filter-cell">
+      <div class="ftitle">不変文字</div>
+      <div class="fbody">
+        <label><input type="checkbox" id="flt-inv-yes" checked>あり</label>
+        <label><input type="checkbox" id="flt-inv-no" checked>なし</label>
+        <label><input type="checkbox" id="flt-inv-unknown" checked>不明</label>
+      </div>
+    </div>
+    <div class="filter-cell">
+      <div class="ftitle">アナグラム</div>
+      <div class="fbody">
+        <label><input type="checkbox" id="flt-ana-yes" checked>あり</label>
+        <label><input type="checkbox" id="flt-ana-no" checked>なし</label>
+        <label><input type="checkbox" id="flt-ana-unknown" checked>不明</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 結果 ===== -->
+<div class="panel">
+  <div class="top-row">
+    <h2 style="margin: 0;">結果</h2>
+    <div class="top-actions">
+      <button id="btn-copy-result">CSVコピー</button>
+    </div>
+  </div>
+  <div id="result-summary" class="result-summary">
+    <span>マッチ: <span class="count" id="cnt-match">-</span></span>
+    <span>表示: <span class="count" id="cnt-shown">-</span></span>
+    <span>不変不明: <span class="count" id="cnt-inv-unknown">-</span></span>
+    <span>アナグラム不明: <span class="count" id="cnt-ana-unknown">-</span></span>
+    <span>違い数不明: <span class="count" id="cnt-diff-unknown">-</span></span>
+  </div>
+  <div id="result-body"></div>
+</div>
+
+<!-- ===== デバッグログ ===== -->
+<div class="panel">
+  <div class="top-row">
+    <h2 style="margin: 0;">デバッグログ</h2>
+    <div class="top-actions">
+      <button id="btn-copy-log">ログコピー</button>
+    </div>
+  </div>
+  <div class="row" style="font-size: 12px; gap: 14px;">
+    <label><input type="checkbox" id="log-opt-all-results">全結果(省略なし)</label>
+    <label><input type="checkbox" id="log-opt-attr-summary" checked>属性サマリー</label>
+    <label><input type="checkbox" id="log-opt-conditions" checked>検索条件詳細</label>
+  </div>
+  <div class="debug-area" style="margin-top: 6px;">
+    <textarea id="debug-log" readonly></textarea>
+  </div>
+</div>
+
+<!-- ===== 状態ハッシュ ===== -->
+<div class="panel">
+  <h2>状態ハッシュ</h2>
+  <div class="hash-area">
+    <input type="text" id="hash-input" placeholder="(検索後に表示) または貼り付けて読込">
+    <div class="button-row">
+      <button id="btn-copy-hash">ハッシュコピー</button>
+      <button id="btn-load-hash">ハッシュ読込</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 使い方モーダル ===== -->
+<div id="help-modal" class="modal-overlay" style="display: none;">
+  <div class="modal">
+    <div style="display: flex; justify-content: space-between; align-items: start;">
+      <h3 style="margin: 0;">使い方</h3>
+      <button id="btn-close-help" class="small">×</button>
+    </div>
+    <p style="color: var(--text-dim);">単語ペア+コメントの蓄積データから、特定の文字対応を持つペアを絞り込み検索するツール。</p>
+
+    <h3>データソース</h3>
+    <ul>
+      <li><b>GAS Web App URL</b>: スプシA列に「単語A,単語B,コメント」形式で1行1ペアが入っているスプシのGAS URLを指定</li>
+      <li>GAS側でカンマ分割して JSON で返すこと(下記の戻り値形式参照)</li>
+      <li><b>手動データ貼り付け</b>: GASを使わずに直接 CSV をテキストエリアに貼り付けても可</li>
+    </ul>
+
+    <h3>GAS の戻り値形式</h3>
+    <pre style="background: var(--bg-elevated); padding: 8px; border-radius: 4px; font-size: 11px; overflow-x: auto;">[
+  { "a": "ぶぎ", "b": "ぶじ", "comment": "...(不変あり,1文字違い)",
+    "invariant": "yes", "anagram": "no", "diffCount": 1 },
+  ...
+]</pre>
+    <p style="color: var(--text-dim); font-size: 12px;">
+      <code>invariant</code>/<code>anagram</code> は <code>"yes" | "no" | "unknown"</code>、<code>diffCount</code> は数値または <code>null</code>(不明)。
+      ツール側でも生コメントから自動判定するので、GAS側で属性を返さなくても動作する。
+    </p>
+
+    <h3>検索条件</h3>
+    <ul>
+      <li>文字 <code>x</code> と <code>y</code> を1文字ずつ指定</li>
+      <li><b>位置 同(n=m)</b>: 単語Aの位置 i と単語Bの位置 i に x, y がある</li>
+      <li><b>位置 異(n≠m)</b>: 単語Aの x の位置と単語Bの y の位置が異なる</li>
+      <li>複数条件は <b>AND/OR</b> で結合</li>
+      <li>A↔B 入れ替えも自動で評価される(<code>x→y</code> と <code>y→x</code> 両方を見る)</li>
+    </ul>
+
+    <h3>フィルタ</h3>
+    <ul>
+      <li><b>文字数</b>: 単語の文字数(A=Bが前提)で範囲指定</li>
+      <li><b>文字違い数</b>: コメントから抽出した N 文字違いで範囲指定</li>
+      <li><b>不変文字 / アナグラム</b>: あり / なし / 不明 をチェックボックスで選択</li>
+    </ul>
+
+    <h3>補助機能</h3>
+    <ul>
+      <li><b>同コメ ボタン</b>: 結果行ごとに「同じコメント本文を持つ全ペア」をモーダルで表示。「このアンサーキーで他にどんな例が作れるか」を一覧</li>
+      <li><b>ズレ ボタン</b>: 結果行のコメントから リスト1→リスト2 を読み取り、各位置のズレ数別にグループ化して表示。グループは <b>Tier1</b> (引き算1値で結合する直接的なペア) / <b>Tier2</b> (リスト全体を <code>d</code> 動かすことで結合できるペア) / <b>混在</b> に分類。ズレ0(完全一致)は紫背景で最優先強調。テーブル上のコメント着色は Tier1 由来のペアのみ反映</li>
+      <li><b>デバッグログ</b>: 入力条件・処理結果を記録。問題報告時にコピーして貼り付け</li>
+      <li><b>状態ハッシュ</b>: Base64エンコードされた状態を読み込み・コピーで復元・共有</li>
+      <li><b>CSVコピー</b>: 結果(フィルタ適用後)を CSV 形式でクリップボードへ</li>
+    </ul>
+
+    <div class="button-row">
+      <button id="btn-load-example" disabled>入力例を読み込む (実装中)</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- ===== 同コメント検索モーダル ===== -->
+<div id="same-comment-modal" class="modal-overlay" style="display: none;">
+  <div class="modal wide">
+    <div class="modal-header">
+      <h3>同じコメントのペア</h3>
+      <button id="btn-close-same" class="small">×</button>
+    </div>
+    <div id="same-comment-source" class="modal-source"></div>
+    <div id="same-comment-summary" class="group-summary"></div>
+    <div id="same-comment-body"></div>
+    <div class="button-row" style="margin-top: 10px;">
+      <button id="btn-copy-same">CSVコピー</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 等間隔ペアモーダル ===== -->
+<div id="diff-modal" class="modal-overlay" style="display: none;">
+  <div class="modal wide">
+    <div class="modal-header">
+      <h3>等間隔ペア (ズレ数別)</h3>
+      <button id="btn-close-diff" class="small">×</button>
+    </div>
+    <div id="diff-source" class="modal-source"></div>
+    <div id="diff-summary" class="group-summary"></div>
+    <div id="diff-body"></div>
+  </div>
+</div>
+
+<script>
+// バージョン v0.4.0 のファイルです
+const VERSION = 'v0.4.0';
+
+// ============================================================
+// State (テスト用に window 公開)
+// ============================================================
+const state = {
+  rows: [],          // [{a, b, comment, invariant, anagram, diffCount, len}]
+  conditions: [{ x: '', y: '', pos: 'same' }],  // 検索条件リスト
+  combine: 'AND',
+  filters: {
+    lenMin: null, lenMax: null,
+    diffMin: null, diffMax: null,
+    invYes: true, invNo: true, invUnknown: true,
+    anaYes: true, anaNo: true, anaUnknown: true,
+  },
+  lastSearch: null,  // 最後の検索結果 { matchedRows, ts }
+  log: '',
+};
+window.__state = state;
+
+// ============================================================
+// データ取り込み
+// ============================================================
+function fetchGAS(gasUrl, params) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__gasCb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const url = `${gasUrl}?${params}&callback=${cbName}`;
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('タイムアウト(15秒)'));
+    }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) document.head.removeChild(script);
+    }
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    const script = document.createElement('script');
+    script.src = url;
+    script.onerror = () => { cleanup(); reject(new Error('GASへの接続に失敗')); };
+    document.head.appendChild(script);
+  });
+}
+
+// 1行のCSV(or 構造化データ)を正規化
+function normalizeRow(raw) {
+  let a, b, comment;
+  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+    a = raw.a; b = raw.b; comment = raw.comment || '';
+  } else if (typeof raw === 'string') {
+    // CSV分割: 最初の2つのカンマで3分割
+    const i1 = raw.indexOf(',');
+    if (i1 < 0) return null;
+    const i2 = raw.indexOf(',', i1 + 1);
+    a = raw.slice(0, i1).trim();
+    b = i2 < 0 ? raw.slice(i1 + 1).trim() : raw.slice(i1 + 1, i2).trim();
+    comment = i2 < 0 ? '' : raw.slice(i2 + 1).trim();
+  } else {
+    return null;
+  }
+  if (!a || !b) return null;
+
+  // 属性抽出: コメントの (...) 内を解析
+  let invariant = 'unknown', anagram = 'unknown', diffCount = null;
+  const m = comment.match(/\(([^)]+)\)\s*$/);
+  if (m) {
+    const tokens = m[1].split(',').map(s => s.trim());
+    for (const t of tokens) {
+      if (t === '不変あり') invariant = 'yes';
+      else if (t === '不変なし') invariant = 'no';
+      else if (t === 'アナグラム') anagram = 'yes';
+      const dm = t.match(/^(\d+)\s*文字違い$/);
+      if (dm) diffCount = parseInt(dm[1], 10);
+    }
+    // anagram 明示が無く、不変情報があるなら anagram は no と推定
+    // ただし「アナグラム」の有無は明示で判断するのが安全なので unknown のままにする選択肢もある
+    // 仕様: 「アナグラム」キーワード無し = no と判定する
+    if (anagram === 'unknown' && (invariant !== 'unknown' || diffCount !== null)) {
+      // 属性括弧があり「アナグラム」記載がない = no
+      anagram = 'no';
+    }
+  }
+
+  // GAS側で属性を直接返した場合は上書き(優先)
+  if (typeof raw === 'object' && raw !== null) {
+    if (raw.invariant) invariant = raw.invariant;
+    if (raw.anagram) anagram = raw.anagram;
+    if (raw.diffCount !== undefined) diffCount = raw.diffCount;
+  }
+
+  return {
+    a, b, comment,
+    invariant, anagram, diffCount,
+    len: [...a].length,  // サロゲート対応で配列化
+  };
+}
+
+async function loadFromGAS() {
+  const url = document.getElementById('gas-url').value.trim();
+  if (!url) {
+    setStatus('URL未入力', 'err');
+    showToast('GAS URLを入力してください');
+    return;
+  }
+  setStatus('読込中...', 'warn');
+  try {
+    const data = await fetchGAS(url, '');
+    if (!Array.isArray(data)) {
+      setStatus('データ形式エラー', 'err');
+      showToast('GASは配列を返す必要があります');
+      return;
+    }
+    const rows = [];
+    for (const item of data) {
+      const r = normalizeRow(item);
+      if (r) rows.push(r);
+    }
+    state.rows = rows;
+    setStatus(`${rows.length}件読込済`, 'ok');
+    showToast(`${rows.length}件のデータを読み込みました`);
+    updateLog();
+  } catch (e) {
+    setStatus('読込失敗', 'err');
+    showToast('読込失敗: ' + e.message);
+  }
+}
+
+function loadFromManual() {
+  const text = document.getElementById('manual-data').value.trim();
+  if (!text) {
+    showToast('テキストを入力してください');
+    return;
+  }
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const rows = [];
+  for (const line of lines) {
+    const r = normalizeRow(line);
+    if (r) rows.push(r);
+  }
+  state.rows = rows;
+  setStatus(`${rows.length}件読込済(手動)`, 'ok');
+  showToast(`${rows.length}件のデータを読み込みました`);
+  updateLog();
+}
+
+function setStatus(text, kind) {
+  const el = document.getElementById('data-status');
+  el.textContent = text;
+  el.className = 'data-status ' + (kind || '');
+}
+
+// ============================================================
+// 順序グループ定義 (ズレ計算用)
+// ============================================================
+const ORDER_GROUPS = [
+  {
+    name: '清音',
+    chars: 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん',
+    cyclic: true,
+  },
+  {
+    name: '濁音',
+    chars: 'がぎぐげござじずぜぞだぢづでど',
+    cyclic: false,
+  },
+  {
+    name: '半濁音(ば行)',
+    chars: 'ばびぶべぼ',
+    cyclic: false,
+  },
+  {
+    name: '半濁音(ぱ行)',
+    chars: 'ぱぴぷぺぽ',
+    cyclic: false,
+  },
+  {
+    name: '英字',
+    chars: 'abcdefghijklmnopqrstuvwxyz',
+    cyclic: true,
+  },
+];
+
+// 文字 → 所属グループの index と グループ内 index
+// 英字は大文字小文字を同一視 (小文字に正規化してルックアップ)
+const CHAR_TO_GROUP = (() => {
+  const m = new Map();
+  ORDER_GROUPS.forEach((g, gi) => {
+    [...g.chars].forEach((c, ci) => {
+      m.set(c, { gi, ci });
+    });
+  });
+  return m;
+})();
+
+// 文字をルックアップ (英字大文字も小文字に正規化)
+function lookupChar(c) {
+  if (CHAR_TO_GROUP.has(c)) return CHAR_TO_GROUP.get(c);
+  // 英字大文字を小文字に
+  const lc = c.toLowerCase();
+  if (lc !== c && CHAR_TO_GROUP.has(lc)) return CHAR_TO_GROUP.get(lc);
+  return null;
+}
+
+// 2文字のズレを計算。
+// 戻り値: { candidates: [{diff, byBase, dShift}, ...], aGroup, bGroup, sameGroup } または null
+//   candidates: 各候補ズレ値とそれが base 由来か d動かし由来かのフラグ
+//   byBase: true なら d=0 のベース値、false なら d動かしで初めて出てきた
+//   dShift: その値が出る最小の |d| 動かし量 (base なら 0)
+function calcCharDiff(a, b) {
+  const ai = lookupChar(a);
+  const bi = lookupChar(b);
+  if (!ai || !bi) return null;
+
+  const ga = ORDER_GROUPS[ai.gi];
+  const gb = ORDER_GROUPS[bi.gi];
+  const sameGroup = ai.gi === bi.gi;
+  const sa = [...ga.chars].length;
+  const sb = [...gb.chars].length;
+  const baseDiff = bi.ci - ai.ci;
+
+  // 同グループの場合は base 1値のみ
+  if (sameGroup) {
+    return {
+      candidates: [{ diff: baseDiff, byBase: true, dShift: 0 }],
+      aGroup: ga.name,
+      bGroup: gb.name,
+      sameGroup: true,
+    };
+  }
+
+  // 異グループの場合: d を -(min_size-1) ~ +(min_size-1) で動かして全候補列挙
+  const minS = Math.min(sa, sb);
+  const seen = new Map();  // diff -> {byBase, dShift}
+
+  // 先に d=0 (base) を登録
+  seen.set(baseDiff, { byBase: true, dShift: 0 });
+
+  for (let d = -(minS - 1); d <= (minS - 1); d++) {
+    if (d === 0) continue;
+    let newAi, newBi;
+    if (ga.cyclic) {
+      newAi = ((ai.ci + d) % sa + sa) % sa;
+    } else {
+      newAi = ai.ci + d;
+      if (newAi < 0 || newAi >= sa) continue;  // 範囲外
+    }
+    if (gb.cyclic) {
+      newBi = ((bi.ci + d) % sb + sb) % sb;
+    } else {
+      newBi = bi.ci + d;
+      if (newBi < 0 || newBi >= sb) continue;  // 範囲外
+    }
+    const newDiff = newBi - newAi;
+    if (!seen.has(newDiff)) {
+      seen.set(newDiff, { byBase: false, dShift: d });
+    } else {
+      // 既存より |d| が小さければ上書き(より小さい d で説明できる)
+      const existing = seen.get(newDiff);
+      if (!existing.byBase && Math.abs(d) < Math.abs(existing.dShift)) {
+        seen.set(newDiff, { byBase: false, dShift: d });
+      }
+    }
+  }
+
+  const candidates = [];
+  for (const [diff, info] of seen.entries()) {
+    candidates.push({ diff, byBase: info.byBase, dShift: info.dShift });
+  }
+  return {
+    candidates,
+    aGroup: ga.name,
+    bGroup: gb.name,
+    sameGroup: false,
+  };
+}
+
+// ============================================================
+// コメント本文のパース (リスト1→リスト2 を抽出)
+// ============================================================
+// コメントから (...) を取り除き、最初の → で2分割
+// 戻り値: { list1, list2, body } または null
+function parseCommentLists(comment) {
+  if (!comment) return null;
+  // (...) 部分を取り除く (末尾の括弧)
+  const body = comment.replace(/\([^)]*\)\s*$/, '').trim();
+  if (!body) return null;
+  const i = body.indexOf('→');
+  if (i < 0) return null;
+  const list1 = body.slice(0, i).trim();
+  const list2 = body.slice(i + 1).trim();
+  if (!list1 || !list2) return null;
+  return { list1, list2, body };
+}
+
+// コメントの「核」(=同コメント判定用): (...) を除いた部分
+function commentCore(comment) {
+  if (!comment) return '';
+  return comment.replace(/\([^)]*\)\s*$/, '').trim();
+}
+
+// ============================================================
+// 等間隔ペアの抽出
+// ============================================================
+// list1 と list2 (同じ位置で対応) を解析し、ズレ数別にグループ化して返す
+// 仕様:
+//  - 各ペアごとに候補ズレ集合を求める (同グループは1値、異グループは複数値)
+//  - 候補ズレ値をキーにグループ化
+//  - 各ペアのグループ内 Tier:
+//     - byBase=true (引き算1値そのもの) → Tier1
+//     - byBase=false (d動かしで来た) → Tier2
+//  - グループ全体の Tier:
+//     - 全員 Tier1 → 'tier1'
+//     - 全員 Tier2 → 'tier2'
+//     - 混在 → 'mixed'
+//  - 2ペア以上のグループのみ採用 (ズレ0は1ペアでも例外的に表示)
+//
+// 戻り値: { groups, unmatched, singletonCount }
+function extractDiffGroups(list1, list2) {
+  const a1 = [...list1];
+  const a2 = [...list2];
+  const len = Math.min(a1.length, a2.length);
+  const groupsMap = new Map();
+  const unmatched = [];
+
+  for (let i = 0; i < len; i++) {
+    const ca = a1[i];
+    const cb = a2[i];
+    const d = calcCharDiff(ca, cb);
+    if (d === null) {
+      unmatched.push({ a: ca, b: cb, idx: i });
+      continue;
+    }
+    for (const cand of d.candidates) {
+      const key = `${cand.diff}`;
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, { key, diff: cand.diff, pairs: [] });
+      }
+      const grp = groupsMap.get(key);
+      // 同じペアが重複登録されないようガード
+      const dup = grp.pairs.find(p => p.idx === i);
+      if (!dup) {
+        grp.pairs.push({
+          a: ca, b: cb, idx: i,
+          aGroup: d.aGroup, bGroup: d.bGroup,
+          byBase: cand.byBase,
+          dShift: cand.dShift,
+        });
+      }
+    }
+  }
+
+  // 2ペア以上のグループのみ採用 (ズレ0は1ペアでも残す特例)
+  const allGroups = Array.from(groupsMap.values());
+  const groups = allGroups.filter(g => g.pairs.length >= 2 || g.diff === 0);
+  const singletonCount = allGroups.length - groups.length;
+
+  // ソート: ズレ0最優先 → tier1 → mixed → tier2、各内でズレ数昇順
+  const tierRank = { tier1: 1, mixed: 2, tier2: 3 };
+  groups.forEach(g => {
+    const allBase = g.pairs.every(p => p.byBase);
+    const allShift = g.pairs.every(p => !p.byBase);
+    g.tier = allBase ? 'tier1' : (allShift ? 'tier2' : 'mixed');
+  });
+  groups.sort((x, y) => {
+    if (x.diff === 0 && y.diff !== 0) return -1;
+    if (x.diff !== 0 && y.diff === 0) return 1;
+    const tr = tierRank[x.tier] - tierRank[y.tier];
+    if (tr !== 0) return tr;
+    return x.diff - y.diff;
+  });
+
+  // 色割り当て (ソート後にやるとTier毎にカラー連続性出る)
+  const palette = [
+    '#9b5de5', '#c084fc', '#10b981', '#f59e0b',
+    '#ef4444', '#3b82f6', '#06b6d4', '#ec4899',
+    '#84cc16', '#f97316', '#a855f7', '#14b8a6',
+  ];
+  let colorIdx = 0;
+  groups.forEach(g => {
+    const sign = g.diff > 0 ? '+' : '';
+    g.label = `${sign}${g.diff}`;
+    g.zero = g.diff === 0;
+    if (g.zero) {
+      g.color = '#c084fc';
+    } else {
+      g.color = palette[colorIdx % palette.length];
+      colorIdx++;
+    }
+  });
+
+  return { groups, unmatched, singletonCount };
+}
+
+// ============================================================
+// 同コメント検索
+// ============================================================
+function findSameCommentRows(targetCore) {
+  return state.rows.filter(r => commentCore(r.comment) === targetCore);
+}
+
+// ============================================================
+// コメント着色
+// ============================================================
+// コメントのうち「リスト1→リスト2」部分の各文字を、所属するズレグループの色で着色する。
+// 単独グループ(1ペアのみ、ただしズレ0は除く)は中性色。
+// (...) 末尾は通常表示。
+function colorizeComment(comment) {
+  const parsed = parseCommentLists(comment);
+  if (!parsed) {
+    return escapeHtml(comment);
+  }
+
+  const a1 = [...parsed.list1];
+  const a2 = [...parsed.list2];
+  const len = Math.min(a1.length, a2.length);
+
+  // ズレグループ抽出 (色も割り当て済み)
+  const { groups } = extractDiffGroups(parsed.list1, parsed.list2);
+
+  // 着色対象: Tier1 グループ + ズレ0グループ + 混在グループ (混在のうち base 由来のペアのみ)
+  // Tier2 (全員 d動かし由来) は着色せず、中性色で表示
+  // 表示ルール:
+  //   - 各位置 i に対し、その位置のペアが「base由来でズレグループに属する」場合、そのグループ色で着色
+  //   - 「d動かしのみ」しか属していない場合は中性色
+  //   - ズレ0は背景強調
+
+  const idxToColor = new Map();
+  const idxToZero = new Set();
+
+  // 表示優先度: ズレ0 > 絶対値小 (base由来優先)
+  const sortedGroups = [...groups].sort((x, y) => {
+    if (x.diff === 0) return -1;
+    if (y.diff === 0) return 1;
+    return Math.abs(x.diff) - Math.abs(y.diff);
+  });
+
+  for (const g of sortedGroups) {
+    for (const p of g.pairs) {
+      // Tier2 のグループ全体は着色対象外 (ただしズレ0は除く)
+      if (g.tier === 'tier2' && !g.zero) continue;
+      // 混在グループでは、d動かし由来のペア個別は着色しない
+      if (!p.byBase && !g.zero) continue;
+      if (g.zero) {
+        idxToZero.add(p.idx);
+        idxToColor.set(p.idx, g.color);
+      } else if (!idxToColor.has(p.idx)) {
+        idxToColor.set(p.idx, g.color);
+      }
+    }
+  }
+
+  function paintList(arr) {
+    let html = '';
+    for (let i = 0; i < arr.length; i++) {
+      const ch = escapeHtml(arr[i]);
+      if (i < len && idxToColor.has(i)) {
+        const color = idxToColor.get(i);
+        if (idxToZero.has(i)) {
+          html += `<span class="cc-zero" style="--c: ${color};">${ch}</span>`;
+        } else {
+          html += `<span class="cc" style="color: ${color};">${ch}</span>`;
+        }
+      } else {
+        html += `<span class="cc-neutral">${ch}</span>`;
+      }
+    }
+    return html;
+  }
+
+  const tailMatch = comment.match(/\([^)]*\)\s*$/);
+  const tail = tailMatch ? escapeHtml(tailMatch[0]) : '';
+
+  return `${paintList(a1)}<span class="cc-arrow">→</span>${paintList(a2)}${tail ? '<span class="cc-tail">' + tail + '</span>' : ''}`;
+}
+
+// ============================================================
+// 検索ロジック
+// ============================================================
+// 1ペア(a, b) と 1条件(x, y, pos) を評価
+// pos='same': 同じ位置 i に a[i]=x かつ b[i]=y がある
+// pos='diff': a に x があり b に y がある、ただしどの位置も同位置で揃わない
+//             (= 全ての i で {a[i]=x, b[i]=y} の同時成立がない、かつ a に x が含まれ b に y が含まれる)
+function matchOne(aChars, bChars, x, y, pos) {
+  if (aChars.length !== bChars.length) return false;
+  if (pos === 'same') {
+    for (let i = 0; i < aChars.length; i++) {
+      if (aChars[i] === x && bChars[i] === y) return true;
+    }
+    return false;
+  } else {
+    // 異位置: a に x、b に y がそれぞれ存在し、かつ「同じ位置に揃っているケース」が無い
+    let aHasX = false, bHasY = false;
+    for (let i = 0; i < aChars.length; i++) {
+      if (aChars[i] === x) aHasX = true;
+      if (bChars[i] === y) bHasY = true;
+      if (aChars[i] === x && bChars[i] === y) return false;  // 同位置で揃った=異位置NG
+    }
+    return aHasX && bHasY;
+  }
+}
+
+// 1ペアを全条件と結合演算子で評価
+// A↔B 入れ替えも見る: 各条件について(a,b)で評価 OR (b,a)で評価
+function matchRow(row, conditions, combine) {
+  if (conditions.length === 0) return true;
+  const aChars = [...row.a];
+  const bChars = [...row.b];
+  if (aChars.length !== bChars.length) return false;  // 文字数不一致は除外
+
+  const results = conditions.map(cond => {
+    if (!cond.x || !cond.y) return null;  // 未入力条件はスキップ(中立)
+    // 通常向き
+    const fwd = matchOne(aChars, bChars, cond.x, cond.y, cond.pos);
+    // 入れ替え向き
+    const rev = matchOne(bChars, aChars, cond.x, cond.y, cond.pos);
+    return fwd || rev;
+  }).filter(r => r !== null);
+
+  if (results.length === 0) return true;  // 有効な条件なし=全件通す
+
+  if (combine === 'AND') return results.every(r => r);
+  return results.some(r => r);
+}
+
+// フィルタ評価
+function passFilter(row, f) {
+  // 文字数
+  if (f.lenMin !== null && row.len < f.lenMin) return false;
+  if (f.lenMax !== null && row.len > f.lenMax) return false;
+  // 違い数
+  if (f.diffMin !== null) {
+    if (row.diffCount === null) return false;  // 不明はminありなら除外
+    if (row.diffCount < f.diffMin) return false;
+  }
+  if (f.diffMax !== null) {
+    if (row.diffCount === null) return false;
+    if (row.diffCount > f.diffMax) return false;
+  }
+  // 不変
+  const invKey = row.invariant === 'yes' ? 'invYes' : row.invariant === 'no' ? 'invNo' : 'invUnknown';
+  if (!f[invKey]) return false;
+  // アナグラム
+  const anaKey = row.anagram === 'yes' ? 'anaYes' : row.anagram === 'no' ? 'anaNo' : 'anaUnknown';
+  if (!f[anaKey]) return false;
+  return true;
+}
+
+function runSearch() {
+  collectInputs();
+  const matched = state.rows.filter(r => matchRow(r, state.conditions, state.combine));
+  state.lastSearch = { matchedRows: matched, ts: new Date().toISOString() };
+  renderResults();
+  updateLog();
+  updateHashDisplay();
+}
+
+// ============================================================
+// 入力収集
+// ============================================================
+function collectInputs() {
+  // 条件
+  const condRows = document.querySelectorAll('.cond-row');
+  state.conditions = [];
+  condRows.forEach(row => {
+    const x = row.querySelector('.x-input').value.trim();
+    const y = row.querySelector('.y-input').value.trim();
+    const pos = row.dataset.pos || 'same';
+    state.conditions.push({ x, y, pos });
+  });
+  // 結合
+  state.combine = document.querySelector('input[name="combine"]:checked').value;
+  // フィルタ
+  state.filters = {
+    lenMin: parseIntOrNull(document.getElementById('flt-len-min').value),
+    lenMax: parseIntOrNull(document.getElementById('flt-len-max').value),
+    diffMin: parseIntOrNull(document.getElementById('flt-diff-min').value),
+    diffMax: parseIntOrNull(document.getElementById('flt-diff-max').value),
+    invYes: document.getElementById('flt-inv-yes').checked,
+    invNo: document.getElementById('flt-inv-no').checked,
+    invUnknown: document.getElementById('flt-inv-unknown').checked,
+    anaYes: document.getElementById('flt-ana-yes').checked,
+    anaNo: document.getElementById('flt-ana-no').checked,
+    anaUnknown: document.getElementById('flt-ana-unknown').checked,
+  };
+}
+
+function parseIntOrNull(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? null : n;
+}
+
+// ============================================================
+// 検索条件 UI
+// ============================================================
+function renderConditions() {
+  const list = document.getElementById('cond-list');
+  list.innerHTML = '';
+  state.conditions.forEach((cond, idx) => {
+    const div = document.createElement('div');
+    div.className = 'cond-row';
+    div.dataset.pos = cond.pos;
+    div.innerHTML = `
+      <span style="color: var(--text-dim); font-size: 11px; min-width: 16px;">#${idx + 1}</span>
+      <input type="text" class="char-input x-input" maxlength="2" value="${escapeAttr(cond.x)}" placeholder="x">
+      <span class="arrow">→</span>
+      <input type="text" class="char-input y-input" maxlength="2" value="${escapeAttr(cond.y)}" placeholder="y">
+      <div class="pos-toggle">
+        <button type="button" class="pos-same ${cond.pos === 'same' ? 'active' : ''}">同位置</button>
+        <button type="button" class="pos-diff ${cond.pos === 'diff' ? 'active' : ''}">異位置</button>
+      </div>
+      <button type="button" class="small btn-remove" style="margin-left: auto;">×</button>
+    `;
+    div.querySelector('.pos-same').addEventListener('click', () => {
+      div.dataset.pos = 'same';
+      state.conditions[idx].pos = 'same';
+      div.querySelector('.pos-same').classList.add('active');
+      div.querySelector('.pos-diff').classList.remove('active');
+    });
+    div.querySelector('.pos-diff').addEventListener('click', () => {
+      div.dataset.pos = 'diff';
+      state.conditions[idx].pos = 'diff';
+      div.querySelector('.pos-diff').classList.add('active');
+      div.querySelector('.pos-same').classList.remove('active');
+    });
+    div.querySelector('.x-input').addEventListener('input', e => {
+      state.conditions[idx].x = e.target.value.trim();
+    });
+    div.querySelector('.y-input').addEventListener('input', e => {
+      state.conditions[idx].y = e.target.value.trim();
+    });
+    div.querySelector('.btn-remove').addEventListener('click', () => {
+      state.conditions.splice(idx, 1);
+      if (state.conditions.length === 0) {
+        state.conditions.push({ x: '', y: '', pos: 'same' });
+      }
+      renderConditions();
+    });
+    list.appendChild(div);
+  });
+}
+
+function addCondition() {
+  state.conditions.push({ x: '', y: '', pos: 'same' });
+  renderConditions();
+}
+
+function clearConditions() {
+  state.conditions = [{ x: '', y: '', pos: 'same' }];
+  renderConditions();
+}
+
+// ============================================================
+// 結果表示
+// ============================================================
+function renderResults() {
+  const matched = state.lastSearch ? state.lastSearch.matchedRows : [];
+  const filtered = matched.filter(r => passFilter(r, state.filters));
+
+  document.getElementById('cnt-match').textContent = matched.length;
+  document.getElementById('cnt-shown').textContent = filtered.length;
+  document.getElementById('cnt-inv-unknown').textContent = filtered.filter(r => r.invariant === 'unknown').length;
+  document.getElementById('cnt-ana-unknown').textContent = filtered.filter(r => r.anagram === 'unknown').length;
+  document.getElementById('cnt-diff-unknown').textContent = filtered.filter(r => r.diffCount === null).length;
+
+  const body = document.getElementById('result-body');
+  if (filtered.length === 0) {
+    body.innerHTML = '<div class="empty">該当なし</div>';
+    return;
+  }
+  // 上限はとりあえず2000件で打ち切り(描画速度のため)
+  const LIMIT = 2000;
+  const shown = filtered.slice(0, LIMIT);
+  let html = '<table class="result-table"><thead><tr>';
+  html += '<th>#</th><th>A</th><th>B</th><th>長</th><th>属性</th><th>コメント</th><th>分析</th>';
+  html += '</tr></thead><tbody>';
+  shown.forEach((r, i) => {
+    const invBadge = r.invariant === 'yes' ? '<span class="badge inv-yes">不変</span>'
+                    : r.invariant === 'no' ? '<span class="badge inv-no">不変なし</span>'
+                    : '<span class="badge inv-unknown">不変?</span>';
+    const anaBadge = r.anagram === 'yes' ? '<span class="badge ana-yes">アナ</span>'
+                    : r.anagram === 'no' ? ''
+                    : '<span class="badge ana-unknown">アナ?</span>';
+    const diffBadge = r.diffCount !== null ? `<span class="badge diff">${r.diffCount}字違</span>`
+                    : '<span class="badge diff-unknown">違?</span>';
+    html += `<tr>
+      <td style="color: var(--text-faint);">${i + 1}</td>
+      <td class="word-a">${escapeHtml(r.a)}</td>
+      <td class="word-b">${escapeHtml(r.b)}</td>
+      <td>${r.len}</td>
+      <td>${invBadge}${anaBadge}${diffBadge}</td>
+      <td class="col-comment">${colorizeComment(r.comment)}</td>
+      <td style="white-space: nowrap;">
+        <button class="row-action-btn btn-same" data-idx="${i}" title="同じコメントの全ペアを表示">同コメ</button>
+        <button class="row-action-btn btn-diff" data-idx="${i}" title="ズレ数別グループを表示">ズレ</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (filtered.length > LIMIT) {
+    html += `<div style="color: var(--warn); margin-top: 8px; font-size: 12px;">表示は先頭${LIMIT}件まで(全${filtered.length}件)</div>`;
+  }
+  body.innerHTML = html;
+
+  // ボタンのイベント結線
+  body.querySelectorAll('.btn-same').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      openSameCommentModal(shown[idx]);
+    });
+  });
+  body.querySelectorAll('.btn-diff').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      openDiffModal(shown[idx]);
+    });
+  });
+}
+
+// ============================================================
+// 同コメント検索モーダル
+// ============================================================
+let lastSameCommentRows = [];
+
+function openSameCommentModal(row) {
+  const core = commentCore(row.comment);
+  const matched = findSameCommentRows(core);
+  lastSameCommentRows = matched;
+
+  document.getElementById('same-comment-source').textContent = core || '(コメントなし)';
+  const sumEl = document.getElementById('same-comment-summary');
+  sumEl.innerHTML = `
+    <span>該当ペア: <span class="gnum">${matched.length}</span> 件</span>
+  `;
+  const body = document.getElementById('same-comment-body');
+  if (matched.length === 0) {
+    body.innerHTML = '<div class="empty">該当なし</div>';
+  } else {
+    let html = '<div class="same-comment-list">';
+    matched.forEach((r, i) => {
+      html += `<div class="same-comment-row">
+        <span style="color: var(--text-faint);">${i + 1}.</span>
+        <span class="sa">${escapeHtml(r.a)}</span>
+        <span class="ssep">,</span>
+        <span class="sb">${escapeHtml(r.b)}</span>
+      </div>`;
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  }
+  document.getElementById('same-comment-modal').style.display = 'flex';
+}
+
+async function copySameCommentCSV() {
+  if (lastSameCommentRows.length === 0) {
+    showToast('コピー対象がありません');
+    return;
+  }
+  const csv = lastSameCommentRows.map(r => `${r.a},${r.b},${r.comment}`).join('\n');
+  const ok = await copyToClipboard(csv);
+  showToast(ok ? `${lastSameCommentRows.length}件をCSVコピー` : 'コピー失敗');
+}
+
+// ============================================================
+// 等間隔ペア モーダル
+// ============================================================
+function openDiffModal(row) {
+  const parsed = parseCommentLists(row.comment);
+  document.getElementById('diff-source').textContent = parsed
+    ? `${parsed.list1} → ${parsed.list2}`
+    : '(コメントから リスト1→リスト2 の形が読み取れません)';
+  const sumEl = document.getElementById('diff-summary');
+  const body = document.getElementById('diff-body');
+
+  if (!parsed) {
+    sumEl.innerHTML = '';
+    body.innerHTML = '<div class="empty">解析できるリストがありません</div>';
+    document.getElementById('diff-modal').style.display = 'flex';
+    return;
+  }
+
+  const a1 = [...parsed.list1];
+  const a2 = [...parsed.list2];
+  const lenWarn = (a1.length !== a2.length)
+    ? `<span style="color: var(--warn);">長さ不一致 (${a1.length}/${a2.length}, 短い方で計算)</span>` : '';
+
+  const { groups, unmatched, singletonCount } = extractDiffGroups(parsed.list1, parsed.list2);
+  const tier1Count = groups.filter(g => g.tier === 'tier1').length;
+  const tier2Count = groups.filter(g => g.tier === 'tier2').length;
+  const mixedCount = groups.filter(g => g.tier === 'mixed').length;
+
+  sumEl.innerHTML = `
+    <span>位置数: <span class="gnum">${Math.min(a1.length, a2.length)}</span></span>
+    <span>T1: <span class="gnum">${tier1Count}</span></span>
+    <span>T2: <span class="gnum">${tier2Count}</span></span>
+    <span>混在: <span class="gnum">${mixedCount}</span></span>
+    <span>単独: <span class="gnum">${singletonCount}</span></span>
+    <span>未対応: <span class="gnum">${unmatched.length}</span></span>
+    ${lenWarn}
+  `;
+
+  let html = '';
+  groups.forEach(g => {
+    const baseCls = g.zero ? 'diff-group zero' : 'diff-group';
+    const tierCls = g.tier === 'tier2' ? 'tier-2' : (g.tier === 'mixed' ? 'tier-mixed' : 'tier-1');
+    const tierLabel = g.tier === 'tier1' ? 'T1'
+                    : g.tier === 'tier2' ? 'T2'
+                    : 'T1+T2';
+    const tierTitle = g.tier === 'tier1' ? 'Tier 1: 全ペアが引き算1値で結合'
+                    : g.tier === 'tier2' ? 'Tier 2: 全ペアが d動かしで結合'
+                    : 'Tier 混在: ベース由来とd動かし由来が混在';
+    const pairs = g.pairs.map(p => {
+      const groupTag = p.aGroup === p.bGroup ? p.aGroup : `${p.aGroup}/${p.bGroup}`;
+      const tierMark = p.byBase ? '' : `<span class="pair-shift">d${p.dShift > 0 ? '+' : ''}${p.dShift}</span>`;
+      const cls = p.byBase ? 'diff-pair' : 'diff-pair pair-by-shift';
+      return `<span class="${cls}" title="${escapeAttr(groupTag)}">${escapeHtml(p.a)}→${escapeHtml(p.b)}${tierMark}</span>`;
+    }).join('');
+    html += `<div class="${baseCls} ${tierCls}" style="--g-color: ${g.color};">
+      <div class="gtitle">
+        <span class="tier-badge ${tierCls}" title="${escapeAttr(tierTitle)}">${tierLabel}</span>
+        ${escapeHtml(g.label)} — ${g.pairs.length}ペア
+      </div>
+      <div class="diff-pairs">${pairs}</div>
+    </div>`;
+  });
+
+  if (unmatched.length > 0) {
+    const pairs = unmatched.map(p =>
+      `<span class="diff-pair">${escapeHtml(p.a)}→${escapeHtml(p.b)}</span>`
+    ).join('');
+    html += `<div class="diff-group unmatched">
+      <div class="gtitle">未分類 (未対応文字) — ${unmatched.length}ペア</div>
+      <div class="diff-pairs">${pairs}</div>
+    </div>`;
+  }
+
+  if (groups.length === 0 && unmatched.length === 0) {
+    html = `<div class="empty">2ペア以上のグループなし${singletonCount > 0 ? ` (単独ペア: ${singletonCount})` : ''}</div>`;
+  } else if (groups.length === 0) {
+    html = `<div class="empty" style="margin-bottom: 10px;">2ペア以上のグループなし</div>` + html;
+  }
+
+  body.innerHTML = html;
+  document.getElementById('diff-modal').style.display = 'flex';
+}
+
+// CSV コピー(フィルタ適用後)
+async function copyResultCSV() {
+  if (!state.lastSearch) {
+    showToast('まず検索してください');
+    return;
+  }
+  const filtered = state.lastSearch.matchedRows.filter(r => passFilter(r, state.filters));
+  const csv = filtered.map(r => `${r.a},${r.b},${r.comment}`).join('\n');
+  const ok = await copyToClipboard(csv);
+  showToast(ok ? `${filtered.length}件をCSVコピー` : 'コピー失敗');
+}
+
+// ============================================================
+// クリップボード
+// ============================================================
+async function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+  }
+  return execCommandFallback(text);
+}
+function execCommandFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.left = '-99999px'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  document.body.removeChild(ta);
+  return ok;
+}
+
+// ============================================================
+// デバッグログ
+// ============================================================
+function updateLog() {
+  collectInputs();
+  const lines = [];
+  lines.push(`=== アンサーキー突合検索 ${VERSION} ===`);
+  lines.push(`時刻: ${new Date().toLocaleString()}`);
+  lines.push('');
+  lines.push('## 入力データ');
+  lines.push(`  読込件数: ${state.rows.length}`);
+  if (state.rows.length > 0) {
+    const lenMap = {};
+    let invY=0, invN=0, invU=0, anaY=0, anaN=0, anaU=0, diffU=0;
+    for (const r of state.rows) {
+      lenMap[r.len] = (lenMap[r.len] || 0) + 1;
+      if (r.invariant === 'yes') invY++; else if (r.invariant === 'no') invN++; else invU++;
+      if (r.anagram === 'yes') anaY++; else if (r.anagram === 'no') anaN++; else anaU++;
+      if (r.diffCount === null) diffU++;
+    }
+    lines.push(`  文字数分布: ${Object.entries(lenMap).sort((a,b)=>+a[0]-+b[0]).map(([k,v])=>`${k}=${v}`).join(', ')}`);
+    if (document.getElementById('log-opt-attr-summary')?.checked) {
+      lines.push(`  不変: あり=${invY} なし=${invN} 不明=${invU}`);
+      lines.push(`  アナグラム: あり=${anaY} なし=${anaN} 不明=${anaU}`);
+      lines.push(`  違い数不明: ${diffU}`);
+    }
+  }
+  lines.push('');
+
+  if (document.getElementById('log-opt-conditions')?.checked) {
+    lines.push('## 検索条件');
+    state.conditions.forEach((c, i) => {
+      lines.push(`  #${i + 1}: x="${c.x}" y="${c.y}" pos=${c.pos}`);
+    });
+    lines.push(`  結合: ${state.combine}`);
+    lines.push(`  A↔B入れ替え: 常時ON`);
+    lines.push('');
+    lines.push('## フィルタ');
+    const f = state.filters;
+    lines.push(`  文字数: ${f.lenMin ?? '-'} ~ ${f.lenMax ?? '-'}`);
+    lines.push(`  違い数: ${f.diffMin ?? '-'} ~ ${f.diffMax ?? '-'}`);
+    lines.push(`  不変: yes=${f.invYes} no=${f.invNo} unknown=${f.invUnknown}`);
+    lines.push(`  アナグラム: yes=${f.anaYes} no=${f.anaNo} unknown=${f.anaUnknown}`);
+    lines.push('');
+  }
+
+  lines.push('## 出力');
+  if (state.lastSearch) {
+    const matched = state.lastSearch.matchedRows;
+    const filtered = matched.filter(r => passFilter(r, state.filters));
+    lines.push(`  検索ヒット: ${matched.length}件`);
+    lines.push(`  フィルタ後: ${filtered.length}件`);
+    lines.push(`  最終実行: ${state.lastSearch.ts}`);
+    if (document.getElementById('log-opt-all-results')?.checked) {
+      lines.push('');
+      lines.push(`  ## 全結果(${filtered.length}件)`);
+      filtered.forEach((r, i) => {
+        lines.push(`    ${i + 1}. ${r.a},${r.b},${r.comment}`);
+      });
+    } else if (filtered.length > 0) {
+      lines.push(`  上位5件:`);
+      filtered.slice(0, 5).forEach((r, i) => {
+        lines.push(`    ${i + 1}. ${r.a},${r.b},${r.comment}`);
+      });
+    }
+  } else {
+    lines.push(`  (まだ検索が実行されていません)`);
+  }
+
+  state.log = lines.join('\n');
+  document.getElementById('debug-log').value = state.log;
+}
+
+// ============================================================
+// ハッシュ(状態シリアライズ)
+// ============================================================
+function buildHashState() {
+  collectInputs();
+  return {
+    v: 1,
+    conditions: state.conditions,
+    combine: state.combine,
+    filters: state.filters,
+    gasUrl: document.getElementById('gas-url').value,
+    rowsLoaded: state.rows.length,  // データ件数の参考(復元はしない、ユーザに再読込を促す)
+  };
+}
+
+function buildHash() {
+  const obj = buildHashState();
+  const json = JSON.stringify(obj);
+  // UTF-8 → Base64
+  return btoa(unescape(encodeURIComponent(json)));
+}
+
+function updateHashDisplay() {
+  const h = buildHash();
+  document.getElementById('hash-input').value = h;
+}
+
+async function copyHash() {
+  updateHashDisplay();
+  const h = document.getElementById('hash-input').value;
+  const ok = await copyToClipboard(h);
+  showToast(ok ? 'ハッシュをコピー' : 'コピー失敗');
+}
+
+function loadHash() {
+  const h = document.getElementById('hash-input').value.trim();
+  if (!h) { showToast('ハッシュ未入力'); return; }
+  try {
+    const json = decodeURIComponent(escape(atob(h)));
+    const obj = JSON.parse(json);
+    if (!obj.v) throw new Error('バージョン情報なし');
+    if (obj.conditions) state.conditions = obj.conditions;
+    if (obj.combine) state.combine = obj.combine;
+    if (obj.filters) state.filters = obj.filters;
+    if (obj.gasUrl) document.getElementById('gas-url').value = obj.gasUrl;
+    // UI 反映
+    renderConditions();
+    document.querySelector(`input[name="combine"][value="${state.combine}"]`).checked = true;
+    const f = state.filters;
+    document.getElementById('flt-len-min').value = f.lenMin ?? '';
+    document.getElementById('flt-len-max').value = f.lenMax ?? '';
+    document.getElementById('flt-diff-min').value = f.diffMin ?? '';
+    document.getElementById('flt-diff-max').value = f.diffMax ?? '';
+    document.getElementById('flt-inv-yes').checked = f.invYes;
+    document.getElementById('flt-inv-no').checked = f.invNo;
+    document.getElementById('flt-inv-unknown').checked = f.invUnknown;
+    document.getElementById('flt-ana-yes').checked = f.anaYes;
+    document.getElementById('flt-ana-no').checked = f.anaNo;
+    document.getElementById('flt-ana-unknown').checked = f.anaUnknown;
+    showToast(`ハッシュ読込完了 (前回${obj.rowsLoaded ?? '?'}件読込済)`);
+    updateLog();
+  } catch (e) {
+    showToast('ハッシュ読込失敗: ' + e.message);
+  }
+}
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function escapeAttr(s) {
+  return escapeHtml(s);
+}
+function showToast(msg) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.classList.add('fade'), 1800);
+  setTimeout(() => t.remove(), 2200);
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+function init() {
+  renderConditions();
+
+  document.getElementById('btn-load').addEventListener('click', loadFromGAS);
+  document.getElementById('btn-load-manual').addEventListener('click', loadFromManual);
+  document.getElementById('btn-add-cond').addEventListener('click', addCondition);
+  document.getElementById('btn-clear-cond').addEventListener('click', clearConditions);
+  document.getElementById('btn-search').addEventListener('click', runSearch);
+  document.getElementById('btn-copy-result').addEventListener('click', copyResultCSV);
+  document.getElementById('btn-copy-log').addEventListener('click', async () => {
+    updateLog();
+    const ok = await copyToClipboard(state.log);
+    showToast(ok ? 'ログをコピー' : 'コピー失敗');
+  });
+  document.getElementById('btn-copy-hash').addEventListener('click', copyHash);
+  document.getElementById('btn-load-hash').addEventListener('click', loadHash);
+
+  // フィルタ即時反映
+  ['flt-len-min','flt-len-max','flt-diff-min','flt-diff-max',
+   'flt-inv-yes','flt-inv-no','flt-inv-unknown',
+   'flt-ana-yes','flt-ana-no','flt-ana-unknown'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      if (state.lastSearch) renderResults();
+      updateLog();
+    });
+    document.getElementById(id).addEventListener('change', () => {
+      if (state.lastSearch) renderResults();
+      updateLog();
+    });
+  });
+
+  // ログオプション即時反映
+  ['log-opt-all-results','log-opt-attr-summary','log-opt-conditions'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updateLog);
+  });
+
+  // 結合方式即時反映 (再検索)
+  document.querySelectorAll('input[name="combine"]').forEach(el => {
+    el.addEventListener('change', () => {
+      state.combine = el.value;
+      updateLog();
+    });
+  });
+
+  // 使い方モーダル
+  document.getElementById('btn-help').addEventListener('click', () => {
+    document.getElementById('help-modal').style.display = 'flex';
+  });
+  document.getElementById('btn-close-help').addEventListener('click', () => {
+    document.getElementById('help-modal').style.display = 'none';
+  });
+  document.getElementById('help-modal').addEventListener('click', e => {
+    if (e.target.id === 'help-modal') {
+      document.getElementById('help-modal').style.display = 'none';
+    }
+  });
+
+  // 同コメント検索モーダル
+  document.getElementById('btn-close-same').addEventListener('click', () => {
+    document.getElementById('same-comment-modal').style.display = 'none';
+  });
+  document.getElementById('same-comment-modal').addEventListener('click', e => {
+    if (e.target.id === 'same-comment-modal') {
+      document.getElementById('same-comment-modal').style.display = 'none';
+    }
+  });
+  document.getElementById('btn-copy-same').addEventListener('click', copySameCommentCSV);
+
+  // 等間隔ペアモーダル
+  document.getElementById('btn-close-diff').addEventListener('click', () => {
+    document.getElementById('diff-modal').style.display = 'none';
+  });
+  document.getElementById('diff-modal').addEventListener('click', e => {
+    if (e.target.id === 'diff-modal') {
+      document.getElementById('diff-modal').style.display = 'none';
+    }
+  });
+
+  updateLog();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
