@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- バージョン v0.4.0 のファイルです -->
+<!-- バージョン v0.4.1 のファイルです -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アンサーキー突合検索 v0.4.0</title>
+<title>アンサーキー突合検索 v0.4.1</title>
 <style>
   :root {
     --bg:           #0a0a0f;
@@ -491,7 +491,7 @@
 <div class="top-row">
   <div>
     <h1>アンサーキー突合検索</h1>
-    <div class="version">v0.4.0</div>
+    <div class="version">v0.4.1</div>
   </div>
   <div class="top-actions">
     <button id="btn-help">使い方</button>
@@ -716,8 +716,8 @@
 </div>
 
 <script>
-// バージョン v0.4.0 のファイルです
-const VERSION = 'v0.4.0';
+// バージョン v0.4.1 のファイルです
+const VERSION = 'v0.4.1';
 
 // ============================================================
 // State (テスト用に window 公開)
@@ -1050,12 +1050,19 @@ function extractDiffGroups(list1, list2) {
       continue;
     }
     for (const cand of d.candidates) {
-      const key = `${cand.diff}`;
+      // キーは (ズレ値, リスト1側グループ名, リスト2側グループ名) の組
+      // 同じズレ値でも、(清音→英字) と (清音→清音) は別グループ扱い
+      const key = `${cand.diff}|${d.aGroup}|${d.bGroup}`;
       if (!groupsMap.has(key)) {
-        groupsMap.set(key, { key, diff: cand.diff, pairs: [] });
+        groupsMap.set(key, {
+          key,
+          diff: cand.diff,
+          aGroup: d.aGroup,
+          bGroup: d.bGroup,
+          pairs: [],
+        });
       }
       const grp = groupsMap.get(key);
-      // 同じペアが重複登録されないようガード
       const dup = grp.pairs.find(p => p.idx === i);
       if (!dup) {
         grp.pairs.push({
@@ -1085,6 +1092,9 @@ function extractDiffGroups(list1, list2) {
     if (x.diff !== 0 && y.diff === 0) return 1;
     const tr = tierRank[x.tier] - tierRank[y.tier];
     if (tr !== 0) return tr;
+    // グループ組合わせ名で安定ソート
+    const gc = (x.aGroup + '|' + x.bGroup).localeCompare(y.aGroup + '|' + y.bGroup);
+    if (gc !== 0) return gc;
     return x.diff - y.diff;
   });
 
@@ -1097,7 +1107,8 @@ function extractDiffGroups(list1, list2) {
   let colorIdx = 0;
   groups.forEach(g => {
     const sign = g.diff > 0 ? '+' : '';
-    g.label = `${sign}${g.diff}`;
+    const groupTag = g.aGroup === g.bGroup ? g.aGroup : `${g.aGroup}→${g.bGroup}`;
+    g.label = `${sign}${g.diff} (${groupTag})`;
     g.zero = g.diff === 0;
     if (g.zero) {
       g.color = '#c084fc';
